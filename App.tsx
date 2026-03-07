@@ -175,25 +175,36 @@ const App: React.FC = () => {
     if (!file) return;
     setIsScanning(true);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve) => {
+      const base64Promise = new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
         reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
-      reader.readAsDataURL(file);
       const base64Data = await base64Promise;
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: [{ parts: [
-          { inlineData: { data: base64Data, mimeType: file.type } },
-          { text: "Extract items with names and prices. Also tax and subtotal." }
+          { inlineData: { data: base64Data, mimeType: file.type || 'image/jpeg' } },
+          { text: "Extract all individual line items from this receipt. For each item, provide the name and the final price. Also extract the subtotal and the total tax amount. If an item has a quantity greater than 1, please list it as a single entry with the total price for that line. Return the data in JSON format." }
         ] }],
         config: {
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              items: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, price: { type: Type.NUMBER } }, required: ["name", "price"] } },
+              items: { 
+                type: Type.ARRAY, 
+                items: { 
+                  type: Type.OBJECT, 
+                  properties: { 
+                    name: { type: Type.STRING }, 
+                    price: { type: Type.NUMBER } 
+                  }, 
+                  required: ["name", "price"] 
+                } 
+              },
               tax: { type: Type.NUMBER },
               subtotal: { type: Type.NUMBER }
             },
@@ -201,17 +212,39 @@ const App: React.FC = () => {
           }
         }
       });
-      const data = JSON.parse(response.text || '{}');
-      if (data.items) {
-        setItems(data.items.map((item: any, idx: number) => ({ id: `ai-${Date.now()}-${idx}`, ...item })));
-        setSettings(prev => ({ 
-          ...prev, 
-          taxRate: precise((data.tax / (data.subtotal || 1)) * 100) || 8.875,
-          taxAmount: null 
+
+      const text = response.text;
+      if (!text) throw new Error("No response from AI");
+      
+      const data = JSON.parse(text);
+      if (data.items && data.items.length > 0) {
+        const newItems = data.items.map((item: any, idx: number) => ({ 
+          id: `ai-${Date.now()}-${idx}`, 
+          name: item.name || 'Unknown Item',
+          price: typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0
         }));
+        
+        setItems(newItems);
+        
+        if (data.subtotal > 0 && data.tax >= 0) {
+          const calculatedRate = (data.tax / data.subtotal) * 100;
+          setSettings(prev => ({ 
+            ...prev, 
+            taxRate: precise(calculatedRate) || 8.875,
+            taxAmount: null 
+          }));
+        }
+        
         setAssignments({});
+        setSelectedItemIds(new Set());
       }
-    } catch (error) { console.error("Scan failed", error); } finally { setIsScanning(false); }
+    } catch (error) { 
+      console.error("Scan failed:", error);
+      alert("Failed to scan receipt. Please try again or enter items manually.");
+    } finally { 
+      setIsScanning(false); 
+      if (e.target) e.target.value = '';
+    }
   };
 
   const updateItem = (id: string, updates: Partial<ReceiptItem>) => setItems(items.map(item => item.id === id ? { ...item, ...updates } : item));

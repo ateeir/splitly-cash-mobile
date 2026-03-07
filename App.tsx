@@ -395,7 +395,7 @@ const App: React.FC = () => {
                 <div className="space-y-4 sm:space-y-5 animate-in fade-in">
                   <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     <div className="space-y-1">
-                      <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
                         <label className="text-[9px] font-black text-slate-400 uppercase">Tax</label>
                         <div className={`flex p-0.5 rounded-md transition-colors ${darkMode ? 'bg-slate-800' : 'bg-slate-200'}`}>
                            <button onClick={() => setTaxInputMode('percent')} className={`p-0.5 rounded transition-all ${taxInputMode === 'percent' ? (darkMode ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 shadow-xs') : 'text-slate-500'}`}><Percent className="w-2 h-2" /></button>
@@ -416,8 +416,8 @@ const App: React.FC = () => {
                     </div>
                     
                     <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <label className="text-[9px] font-black text-slate-400 uppercase">Cash</label>
+                      <div className="flex items-center gap-2">
+                        <label className="text-[9px] font-black text-slate-400 uppercase">Discount</label>
                         <button 
                           onClick={() => setSettings({...settings, isCashDiscountEnabled: !settings.isCashDiscountEnabled})}
                           className={`w-6 h-3 rounded-full relative transition-colors ${settings.isCashDiscountEnabled ? 'bg-emerald-500' : 'bg-slate-700'}`}

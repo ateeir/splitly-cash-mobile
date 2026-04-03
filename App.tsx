@@ -221,8 +221,11 @@ const App: React.FC = () => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    console.log('[SCAN] Starting scan...');
+    console.log('[SCAN] File:', { name: file.name, type: file.type, size: file.size });
 
     if (!geminiApiKey) {
+      console.log('[SCAN] No API key set, showing modal');
       setShowApiKeyModal(true);
       if (e.target) e.target.value = '';
       return;
@@ -230,6 +233,7 @@ const App: React.FC = () => {
 
     setIsScanning(true);
     try {
+      console.log('[SCAN] Reading file as base64...');
       const base64Promise = new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -237,7 +241,9 @@ const App: React.FC = () => {
         reader.readAsDataURL(file);
       });
       const base64Data = await base64Promise;
+      console.log('[SCAN] Base64 ready, length:', base64Data.length);
 
+      console.log('[SCAN] Calling /api/scan-receipt...');
       const res = await fetch('/api/scan-receipt', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,8 +253,18 @@ const App: React.FC = () => {
           apiKey: geminiApiKey,
         }),
       });
+      console.log('[SCAN] Response status:', res.status);
 
-      const data = await res.json();
+      let data;
+      const responseText = await res.text();
+      console.log('[SCAN] Raw response:', responseText);
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        console.error('[SCAN] Failed to parse response as JSON:', responseText);
+        throw new Error('Server returned an invalid response. Check the console for details.');
+      }
+      console.log('[SCAN] Parsed data:', JSON.stringify(data, null, 2));
 
       if (!res.ok) {
         if (res.status === 401) {
@@ -259,6 +275,8 @@ const App: React.FC = () => {
         throw new Error(data.error || 'Failed to scan receipt');
       }
 
+      console.log('[SCAN] Items count:', data.items?.length ?? 0, '| Tax:', data.tax, '| Subtotal:', data.subtotal);
+
       if (data.items && data.items.length > 0) {
         const newItems = data.items.map((item: any, idx: number) => ({
           id: `ai-${Date.now()}-${idx}`,
@@ -266,10 +284,12 @@ const App: React.FC = () => {
           price: typeof item.price === 'number' ? item.price : parseFloat(item.price) || 0
         }));
 
+        console.log('[SCAN] Setting', newItems.length, 'items');
         setItems(newItems);
 
         if (data.subtotal > 0 && data.tax >= 0) {
           const calculatedRate = (data.tax / data.subtotal) * 100;
+          console.log('[SCAN] Tax rate calculated:', calculatedRate);
           setSettings(prev => ({
             ...prev,
             taxRate: precise(calculatedRate) || 8.875,
@@ -279,9 +299,12 @@ const App: React.FC = () => {
 
         setAssignments({});
         setSelectedItemIds(new Set());
+      } else {
+        console.log('[SCAN] No items found in response');
+        alert('No items found on the receipt. Try a clearer photo.');
       }
     } catch (error: any) {
-      console.error("Scan failed:", error);
+      console.error("[SCAN] Scan failed:", error);
       alert(error.message || "Failed to scan receipt. Please try again or enter items manually.");
     } finally {
       setIsScanning(false);

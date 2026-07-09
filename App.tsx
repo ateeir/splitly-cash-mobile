@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import { ReceiptItem, User, Assignment, AssignmentsMap, SplitSettings, Totals, RoundingMode } from './types';
 import { MOCK_RECEIPT, INITIAL_USERS, USER_COLORS } from './constants';
 import { calculateTotals, formatCurrency, precise } from './utils/math';
@@ -798,6 +799,7 @@ const App: React.FC = () => {
 
       <SummaryFooter totals={totals} settings={settings} darkMode={darkMode} />
       <AssignmentModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} items={items.filter(i => selectedItemIds.has(i.id))} users={users} currentAssignments={assignments} onSave={saveAssignments} darkMode={darkMode} />
+      <Analytics />
     </div>
   );
 };
